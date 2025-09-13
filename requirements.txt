@@ -1,0 +1,14 @@
+
+
+# Web framework (if needed for API)
+fastapi
+uvicorn
+
+# Data processing
+pandas
+python-dateutil
+openpyxl
+
+# Google ADK and GenAI (core chatbot dependencies)
+google-adk
+google-genai
