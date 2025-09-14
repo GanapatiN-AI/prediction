@@ -273,21 +273,19 @@ predict_agent = Agent(
         Always return response in this format:
 
         approval predict fastest to slowest ranking:
-
-        <Agency> approval: QX YYYY
-        Reason: <Reason for for prediction>
-
-        <Agency> approval: QX YYYY
-        Reason: <Reason for for prediction>
+        "Agency":"<agency name>",
+        "Tentative approval":"QX YYYY",
+        "Reason": "<Reason for for prediction>",
+        "reimbursement approval dates":<HTA Country> → <months> months.......
+        
+        
+        
+        approval predict fastest to slowest ranking:
+        "Agency":"<agency name>",
+        "Tentative approval":"QX YYYY",
+        "Reason": "<Reason for for prediction>",
+        "reimbursement approval dates":<HTA Country> → <months> months.......
         ........
-        
-        
-        Prediction of reimbursement post-approval (<Agency>)
-        <HTA Country> → <months> months.......
-        
-        Prediction of reimbursement post-approval (<Agency>)
-        <HTA Country> → <months> months...
-        .......
 
         """
     ),
