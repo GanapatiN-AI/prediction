@@ -21,7 +21,7 @@ MODEL_GEMINI_2_0_FLASH = "gemini-2.0-flash"
 # ----------------------------
 # 2. API Keys (replace with yours)
 # ----------------------------
-os.environ["GOOGLE_API_KEY"] = "AIzaSyDAOcP7uNLrb2F_0w8MpXIK8OeXoi-pwfo"
+os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")#"AIzaSyDAOcP7uNLrb2F_0w8MpXIK8OeXoi-pwfo"
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
 print("✅ API Keys configured.")
 
