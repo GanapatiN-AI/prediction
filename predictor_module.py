@@ -14,6 +14,8 @@ warnings.filterwarnings("ignore")
 # ----------------------------
 # 1. Model constants
 # ----------------------------
+
+
 MODEL_GEMINI_2_0_FLASH = "gemini-2.0-flash"
 
 # ----------------------------
@@ -197,9 +199,10 @@ def predict_approval(indication: str, molecule_type: str, agencies: str, start_d
         reimbursement_output = "Prediction of reimbursement post-approval (" + agency.upper() + ")\n"
         reimbursement_output += ", ".join(reimbursement_summary) if reimbursement_summary else "No HTA data available"
 
-        # --- Reason from uploaded text file ---
+        # # --- Reason from uploaded text file ---
         reason_text = get_reason_from_text(agency, mol_type_norm, indication)
-        reason_text += f" | Source: {source_type}"
+        
+        
 
         # --- Quarter format ---
         q_approval = (predicted_approval_date.month - 1) // 3 + 1
@@ -259,6 +262,7 @@ predict_agent = Agent(
         
         3. Justification and Reasoning:
         You must provide a clear and meaningful reason for the prediction.
+        the reason is based on why it predictend that value ,what are the things affect on prediction of approval for selected indication,molucule type and agency.
         This reason should be a synthesis of the prediction output, the user's input, and information from the uploaded text file.
         The justification must be between four and five sentences in length.
         The 25% reasoning should be based on the prediction output and user input, while up to 75% can be derived from the uploaded text file.
@@ -279,9 +283,11 @@ predict_agent = Agent(
         
         
         Prediction of reimbursement post-approval (<Agency>)
+        <HTA Country> → <months> months.......
         
-        <HTA Country> → <months> months, ...
-
+        Prediction of reimbursement post-approval (<Agency>)
+        <HTA Country> → <months> months...
+        .......
 
         """
     ),
