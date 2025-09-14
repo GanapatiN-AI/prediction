@@ -1,8 +1,6 @@
-
-
-# Web framework (if needed for API)
+# Web framework
 fastapi
-uvicorn
+uvicorn[standard]
 
 # Data processing
 pandas
@@ -12,3 +10,11 @@ openpyxl
 # Google ADK and GenAI (core chatbot dependencies)
 google-adk
 google-genai
+
+# For typing and linting (optional, but recommended for modern Python)
+typing-extensions
+
+# For async support (already included in FastAPI, but explicit for clarity)
+httpx
+
+# For running in production (optional, for deployment)
