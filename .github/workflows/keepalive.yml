@@ -10,4 +10,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Curl Render app
-        run: curl -s https://prediction-axzs.onrender.com/ > /dev/null || true
+        run: curl -s https://prediction-axzs.onrender.com/docs > /dev/null || true

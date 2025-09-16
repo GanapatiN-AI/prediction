@@ -1,10 +1,10 @@
 import os
 import asyncio
 import re
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Dict, List
+from typing import Dict
 from google.adk.agents import Agent
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
@@ -22,17 +22,20 @@ app = FastAPI(title="Drug Approval Predictor API")
 # CORS Configuration
 # ----------------------------
 origins = [
-    "*",  # Allow all origins, or specify your frontend URL(s) like "http://localhost:3000"
+    "*",  # Allow all origins, or specify frontend URLs like "http://localhost:3000"
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,          # Frontend domains allowed
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],            # GET, POST, PUT, DELETE, etc.
-    allow_headers=["*"],            # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
+# ----------------------------
+# Request Model
+# ----------------------------
 class PredictRequest(BaseModel):
     indication: str
     molecule_type: str
@@ -46,7 +49,11 @@ async def call_agent_async(query: str, runner, user_id, session_id):
     content = types.Content(role="user", parts=[types.Part(text=query)])
     final_response_text = "Agent did not produce a final response."
 
-    async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
+    async for event in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=content
+    ):
         if event.is_final_response():
             if event.content and event.content.parts:
                 final_response_text = event.content.parts[0].text
@@ -54,39 +61,41 @@ async def call_agent_async(query: str, runner, user_id, session_id):
     return final_response_text
 
 # ----------------------------
-# Response parser function
+# Robust Response Parser
 # ----------------------------
 def parse_agent_response(response_text: str) -> Dict:
-    agencies = re.split(r'approval predict fastest to slowest ranking:', response_text)
     result = {"approvals": []}
 
-    for agency_block in agencies:
-        if not agency_block.strip():
+    # Split response into chunks per agency
+    agency_blocks = re.split(r'(?="Agency":")', response_text)
+
+    for block in agency_blocks:
+        if not block.strip():
             continue
 
         # Extract Agency
-        agency_match = re.search(r'"Agency":"([^"]+)"', agency_block)
+        agency_match = re.search(r'"Agency":"([^"]+)"', block)
         if not agency_match:
             continue
         agency_name = agency_match.group(1)
 
         # Extract Tentative Approval
-        approval_match = re.search(r'"Tentative approval":"([^"]+)"', agency_block)
+        approval_match = re.search(r'"Tentative approval":"([^"]+)"', block)
         tentative_approval = approval_match.group(1) if approval_match else ""
 
         # Extract Reason
-        reason_match = re.search(r'"Reason": "([^"]+)"', agency_block)
+        reason_match = re.search(r'"Reason":\s*"([^"]+)"', block)
         reason = reason_match.group(1) if reason_match else ""
 
         # Extract reimbursement dates
-        reimb_match = re.search(r'"reimbursement approval dates":(.+)', agency_block, re.DOTALL)
-        reimb_str = reimb_match.group(1) if reimb_match else ""
         reimb_dict = {}
-        for item in re.findall(r'(\w+)\s*→\s*(\d+)\s*months', reimb_str):
+        reimb_matches = re.findall(r'(\w+)\s*[:→]\s*(\d+)\s*months', block)
+        for item in reimb_matches:
             reimb_dict[item[0]] = f"{item[1]} months"
 
-        # Sort reimbursement by fastest-to-slowest (ascending months)
-        reimb_sorted = dict(sorted(reimb_dict.items(), key=lambda x: int(x[1].split()[0])))
+        reimb_sorted = dict(
+            sorted(reimb_dict.items(), key=lambda x: int(x[1].split()[0]))
+        )
 
         result["approvals"].append({
             "agency": agency_name,
@@ -95,8 +104,12 @@ def parse_agent_response(response_text: str) -> Dict:
             "reimbursement_approval_dates": reimb_sorted
         })
 
-    # Sort approvals by tentative approval date (earliest first)
-    result["approvals"] = sorted(result["approvals"], key=lambda x: x["tentative_approval"])
+    # Sort approvals by tentative approval date if possible
+    result["approvals"] = sorted(
+        result["approvals"],
+        key=lambda x: x["tentative_approval"]
+    )
+
     return result
 
 # ----------------------------
@@ -104,20 +117,30 @@ def parse_agent_response(response_text: str) -> Dict:
 # ----------------------------
 @app.on_event("startup")
 async def startup_event():
-    await session_service.create_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID)
+    await session_service.create_session(
+        app_name=APP_NAME,
+        user_id=USER_ID,
+        session_id=SESSION_ID
+    )
 
 # ----------------------------
 # API endpoints
 # ----------------------------
 @app.post("/predict")
 async def predict(req: PredictRequest) -> Dict:
+    # Force agent to return response for each agency separately
     query = (
         f"Indication={req.indication}, "
         f"MoleculeType={req.molecule_type}, "
-        f"Agencies={req.agencies}, "
+        f"Agencies={req.agencies} "
+        f"(return response for EACH agency separately in structured format), "
         f"StartDate={req.start_date}"
     )
+
     response_text = await call_agent_async(query, runner, USER_ID, SESSION_ID)
+
+    # DEBUG: Print raw agent response in logs
+    print("\n====== RAW AGENT RESPONSE ======\n", response_text, "\n===============================\n")
 
     # Parse agent response into structured JSON with rankings
     structured_response = parse_agent_response(response_text)
