@@ -89,7 +89,7 @@ def get_reason_from_text(agency: str, molecule_type: str, indication: str, predi
             f"the predicted approval timeline is {prediction_output}. "
         )
     else:
-        user_part = "Based on the prediction output and user input, "
+        user_part = "Based on user input and historical data, "
 
     # 75% from text file, rephrased
     text_part = " ".join(sentences)
@@ -222,6 +222,7 @@ def predict_approval(indication: str, molecule_type: str, agencies: str, start_d
 # ----------------------------
 # 5. Define ADK Agent
 # ----------------------------
+
 predict_agent = Agent(
     name="drug_approval_predictor",
     model=MODEL_GEMINI_2_0_FLASH,
@@ -235,7 +236,7 @@ predict_agent = Agent(
         Indication
         MoleculeType
         Agencies
-        start_date
+        actual_study_completion_date
 
         2. Prediction Process:
         Use the provided data to call the predict_approval tool.
