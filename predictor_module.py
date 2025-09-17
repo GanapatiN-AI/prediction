@@ -21,11 +21,11 @@ MODEL_GEMINI_2_0_FLASH = "gemini-2.0-flash"
 # ----------------------------
 
 
-os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")#"AIzaSyDAOcP7uNLrb2F_0w8MpXIK8OeXoi-pwfo"
+os.environ["GOOGLE_API_KEY"] = "AIzaSyDAOcP7uNLrb2F_0w8MpXIK8OeXoi-pwfo"
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
 print("✅ API Keys configured.")
 
-
+# os.getenv("GOOGLE_API_KEY")
 # ----------------------------
 # 3. Load Excel Dataset
 # ----------------------------
@@ -63,21 +63,45 @@ def load_reason_file(file_path: str) -> str:
 
 REASON_TEXT = load_reason_file(REASON_FILE)
 
-def get_reason_from_text(agency: str, molecule_type: str, indication: str) -> str:
+def get_reason_from_text(agency: str, molecule_type: str, indication: str, prediction_output: str = "", user_input: dict = None) -> str:
     """
-    Search the text file for a reason that matches agency, molecule_type, and indication keywords.
+    Synthesizes a multi-sentence reason for the prediction, using both prediction output/user input and all relevant text file reasons.
     """
     agency = agency.lower()
     molecule_type = molecule_type.lower()
     indication = indication.lower()
     fallback_reason = "No specific reason available for this combination in the text file."
 
-    sentences = REASON_TEXT.split(".")
-    for sent in sentences:
-        if agency in sent and molecule_type in sent:
-            if indication in sent or True:
-                return sent.strip().capitalize() + "."
-    return fallback_reason
+    # Collect all relevant sentences
+    sentences = [s.strip().capitalize() for s in REASON_TEXT.split(".") if agency in s and molecule_type in s and indication in s]
+    if not sentences:
+        # fallback: try with just agency and molecule_type
+        sentences = [s.strip().capitalize() for s in REASON_TEXT.split(".") if agency in s and molecule_type in s]
+    if not sentences:
+        return fallback_reason
+
+    # Synthesize reasoning
+    # 25% from prediction/user input
+    user_part = ""
+    if user_input:
+        user_part = (
+            f"Based on the provided indication ({user_input.get('indication','')}), molecule type ({user_input.get('molecule_type','')}), and agency ({user_input.get('agency','').upper()}), "
+            f"the predicted approval timeline is {prediction_output}. "
+        )
+    else:
+        user_part = "Based on the prediction output and user input, "
+
+    # 75% from text file, rephrased
+    text_part = " ".join(sentences)
+    text_part = text_part.replace("according to the text file", "based on historical studies")
+    text_part = text_part.replace("as per the text file", "based on recent trends")
+
+    # Combine and ensure at least 5 sentences
+    combined = user_part + text_part
+    if combined.count(".") < 5:
+        combined += " " + " ".join(sentences[:5 - combined.count(".")])
+
+    return combined.strip()
 
 # ----------------------------
 # 4. Predictor Tool
@@ -215,32 +239,35 @@ predict_agent = Agent(
 
         2. Prediction Process:
         Use the provided data to call the predict_approval tool.
-        
+
         3. Justification and Reasoning:
-        You must provide a clear and meaningful reason for the prediction.
-        the reason is based on why it predictend that value ,what are the things affect on prediction of approval for selected indication,molucule type and agency.
-        This reason should be a synthesis of the prediction output, the user's input, and information from the uploaded text file.
-        The justification must be between four and five sentences in length.
-        The 75% reasoning should be based on the prediction output and user input, while up to 25% can be derived from the uploaded text file.
-        
-        4. Conditional Override:
-        You have the authority to change the prediction if you find a strong, contradictory reason within the uploaded text file. The final decision should reflect the most compelling evidence available.
-        
-        Always return response in this format:
+        -while providing reasons dont use According to the text file or As per the text file,use based on historical studies or based on recent trends.
+        - For each agency, you must provide a detailed, multi-sentence reason for the prediction.
+        - The reason must be at least five sentences.
+        -please search the text file for relevant reasons that match the agency, molecule type, and indication.
+        - 25% of the reasoning should be based on the prediction output and user input (e.g., timelines, data availability, molecule type, agency, indication) you need to search the text file for relevant reasons that match the agency, molecule type, and indication.
+        - 75% of the reasoning must be synthesized from all relevant information found in the uploaded text file, especially sentences that mention the selected indication, molecule type, and agency. Like what factors influence the approval timelines, any recent changes in regulations, historical approval trends, or specific challenges associated with the indication or molecule type.
+        - If multiple relevant reasons are found in the text file, combine them into a comprehensive justification.
+        - If a strong, contradictory reason is found in the text file, you may override the prediction and explain why.
+        - Always use all matching reasons from the text file for the selected parameters.
+
+        4. Response Format:
+        For each agency, return the response in this format:
 
         approval predict fastest to slowest ranking:
         "Agency":"<agency name>",
         "Tentative approval":"QX YYYY",
-        "Reason": "<Reason for for prediction>",
+        "Reason": "<Comprehensive, multi-sentence reason for prediction, using both prediction output/user input and all relevant text file reasons>",
         "reimbursement approval dates":<HTA Country> → <months> months.......
-        
-        
-        
+
+        Example:
         approval predict fastest to slowest ranking:
-        "Agency":"<agency name>",
-        "Tentative approval":"QX YYYY",
-        "Reason": "<Reason for for prediction>",
-        "reimbursement approval dates":<HTA Country> → <months> months.......
+        "Agency":"FDA",
+        "Tentative approval":"Q2 2025",
+        "Reason": "Based on the provided indication and molecule type, the predicted approval timeline is Q2 2025. The dataset shows similar cases with a median lag of 14 months. According to the uploaded text file, FDA approvals for this indication and molecule type are often influenced by recent clinical trial outcomes and regulatory priorities. The text file also notes that expedited pathways may apply for this agency. Therefore, the prediction reflects both the data-driven estimate and the contextual factors described in the text file.",
+        "reimbursement approval dates":US → 8 months, EU → 12 months
+
+        Always follow this structure for each agency in the ranking.
         """
     ),
     tools=[predict_approval],
@@ -282,6 +309,7 @@ async def call_agent_async(query: str, runner, user_id, session_id):
 # ----------------------------
 # 8. Run Example Conversation
 # ----------------------------
+
 async def run_conversation():
     await session_service.create_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID)
     indication = input("Enter Indication: ")
